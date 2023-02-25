@@ -1,0 +1,35 @@
+title Keepair Primary/Worker Nodes Sequence
+
+actor Client
+participant Primary
+participant Worker[N]
+
+
+group #f1f1f1 init
+rbox right of Worker[N]:**Worker[N]** node starts and\nattempts to connect with\n**Primary** node.
+
+Worker[N]->Primary:Register Self
+
+rbox left of Primary:**Primary** node registers\n**Worker[N]** node.
+
+Worker[N]<--Primary:OK
+
+note over Worker[N],Primary:From now on, **Primary** node will periodically\nperform health check on **Worker[N]** node.
+
+
+loop Worker[N] node is registered
+Worker[N]<-Primary:Health Check on **Worker[N]**
+Worker[N]-->Primary:OK
+end Worker[N] node
+end Initialization
+
+// --------
+
+group #f1f1f1 set(K,V) or get(K,V)
+Client->Primary: **set(K,V)** or **get(K,V)**
+note over Primary:Generate deterministic\npartition key (PK) from K.\n\nPK is an integer that represents the\nregistered **Worker[N]** node index.\n\nRequest will be reverse-proxied\nto **Worker[PK]** node.
+Primary->Worker[N]: **set(K,V)** or **get(K,V)**
+Primary<--Worker[N]: **OK** or **Data Buffer**
+Client<--Primary: **OK** or **Data Buffer**
+end set(K,V) or get(K,V)
+
