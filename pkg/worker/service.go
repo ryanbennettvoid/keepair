@@ -18,19 +18,19 @@ type IService interface {
 }
 
 type Service struct {
-	ID            string
-	MasterNodeURL string
+	ID             string
+	PrimaryNodeURL string
 }
 
-func NewService(masterNodeURL string) IService {
+func NewService(primaryNodeURL string) IService {
 	return &Service{
-		ID:            uuid.NewString(),
-		MasterNodeURL: masterNodeURL,
+		ID:             uuid.NewString(),
+		PrimaryNodeURL: primaryNodeURL,
 	}
 }
 
 func (m *Service) Run(ctx context.Context, port string) error {
-	// attempt to register self to master node until
+	// attempt to register self to primary node until
 	// context is cancelled
 	for err := m.registerSelf(ctx, port); err != nil; {
 		if contextErr := ctx.Err(); contextErr != nil {
@@ -46,7 +46,7 @@ func (m *Service) Run(ctx context.Context, port string) error {
 }
 
 func (m *Service) registerSelf(ctx context.Context, port string) error {
-	registerURL := fmt.Sprintf("%s/register", m.MasterNodeURL)
+	registerURL := fmt.Sprintf("%s/register", m.PrimaryNodeURL)
 	body := map[string]any{
 		"id":   m.ID,
 		"port": port,

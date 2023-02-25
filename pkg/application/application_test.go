@@ -32,17 +32,17 @@ func isServerClosedError(err error) bool {
 	return errors.Is(err, http.ErrServerClosed)
 }
 
-// TestMasterNode checks to see that the
-// master node can run and be healthy
-func TestMasterNode(t *testing.T) {
+// TestPrimaryNode checks to see that the
+// primary node can run and be healthy
+func TestPrimaryNode(t *testing.T) {
 
 	errChan := make(chan error)
-	masterNodeContext, cancel := context.WithCancel(context.Background())
+	primaryNodeContext, cancel := context.WithCancel(context.Background())
 
-	// run master node in background
+	// run primary node in background
 	go func() {
 		service := primary.NewService()
-		if err := service.Run(masterNodeContext, "8000"); err != nil {
+		if err := service.Run(primaryNodeContext, "8000"); err != nil {
 			if isTimeoutError(err) || isServerClosedError(err) {
 				errChan <- nil
 			} else {
@@ -51,10 +51,10 @@ func TestMasterNode(t *testing.T) {
 		}
 	}()
 
-	// wait a bit for master node server to start
+	// wait a bit for primary node server to start
 	time.Sleep(time.Millisecond * 500)
 
-	// check if master node is healthy
+	// check if primary node is healthy
 	res, err := http.Get("http://0.0.0.0:8000/health")
 	panicErr(err)
 	assert.Equal(t, 200, res.StatusCode)
@@ -66,10 +66,10 @@ func TestMasterNode(t *testing.T) {
 	assert.NoError(t, <-errChan)
 }
 
-// TestWorkerNodeWithoutMasterNode should throw an
+// TestWorkerNodeWithoutPrimaryNode should throw an
 // error since the worker node cannot register to the
-// master node
-func TestWorkerNodeWithoutMasterNode(t *testing.T) {
+// primary node
+func TestWorkerNodeWithoutPrimaryNode(t *testing.T) {
 
 	errChan := make(chan error)
 	workerNodeContext, cancel := context.WithCancel(context.Background())
@@ -95,17 +95,17 @@ func TestWorkerNodeWithoutMasterNode(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to register self")
 }
 
-// TestMasterNodeWithWorkerNode should successfully run the master node
-// and the worker node, with the worker node registered to the master node
-func TestMasterNodeWithWorkerNode(t *testing.T) {
+// TestPrimaryNodeWithWorkerNode should successfully run the primary node
+// and the worker node, with the worker node registered to the primary node
+func TestPrimaryNodeWithWorkerNode(t *testing.T) {
 
 	errChan := make(chan error)
-	masterNodeContext, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	primaryNodeContext, cancel := context.WithTimeout(context.Background(), time.Second*3)
 
-	// run master node in background
+	// run primary node in background
 	go func() {
 		service := primary.NewService()
-		if err := service.Run(masterNodeContext, "8000"); err != nil {
+		if err := service.Run(primaryNodeContext, "8000"); err != nil {
 			if isTimeoutError(err) || isServerClosedError(err) {
 				errChan <- nil
 			} else {
@@ -114,13 +114,13 @@ func TestMasterNodeWithWorkerNode(t *testing.T) {
 		}
 	}()
 
-	// wait a bit for master node server to start
+	// wait a bit for primary node server to start
 	time.Sleep(time.Millisecond * 500)
 
 	// run worker node in background
 	go func() {
 		service := worker.NewService("http://0.0.0.0:8000")
-		if err := service.Run(masterNodeContext, "8001"); err != nil {
+		if err := service.Run(primaryNodeContext, "8001"); err != nil {
 			if isTimeoutError(err) || isServerClosedError(err) {
 				errChan <- nil
 			} else {
