@@ -1,0 +1,17 @@
+version: "3"
+services:
+
+  keepair_test:
+    container_name: keepair_test
+    build:
+      dockerfile: test.Dockerfile
+      context: ./docker/test
+    volumes:
+      - .:/root
+    mem_limit: 1024m
+    networks:
+      - keepair_network
+
+networks:
+  keepair_network:
+    name: keepair_network

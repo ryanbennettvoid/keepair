@@ -57,7 +57,7 @@ func (s *Service) Start() CancelFunc {
 			}
 			if res.StatusCode >= 400 {
 				s.Lock()
-				s.lastError = fmt.Errorf("bad status code: %s", res.StatusCode)
+				s.lastError = fmt.Errorf("bad status code: %d", res.StatusCode)
 				s.Unlock()
 				return
 			}

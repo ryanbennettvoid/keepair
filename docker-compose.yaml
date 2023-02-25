@@ -5,11 +5,8 @@ services:
     container_name: keepair_master
     build:
       dockerfile: dev.Dockerfile
-      context: ./docker/master
-    privileged: true
+      context: docker/primary
     tty: true
-    security_opt:
-      - seccomp:unconfined
     environment:
       - PORT=9000
     ports:
@@ -25,10 +22,7 @@ services:
     build:
       dockerfile: dev.Dockerfile
       context: ./docker/worker
-    privileged: true
     tty: true
-    security_opt:
-      - seccomp:unconfined
     environment:
       - PORT=9001
       - MASTER_NODE_URL=http://keepair_master:9000
@@ -45,10 +39,7 @@ services:
     build:
       dockerfile: dev.Dockerfile
       context: ./docker/worker
-    privileged: true
     tty: true
-    security_opt:
-      - seccomp:unconfined
     environment:
       - PORT=9002
       - MASTER_NODE_URL=http://keepair_master:9000

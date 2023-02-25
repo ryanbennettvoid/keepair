@@ -2,6 +2,7 @@ package node
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"path"
 	"time"
@@ -25,15 +26,18 @@ func NewNode(ID, address, port string) Node {
 
 func (node *Node) PerformHealthCheck() {
 	node.LastHealthCheckTime = time.Now()
+	address := node.Address
+	ID := node.ID
 
-	url := "http://" + path.Join(node.Address, "/health")
+	url := "http://" + path.Join(address, "/health")
+
 	res, err := http.Get(url)
 	success := err == nil && res.StatusCode == 200
 	defer func() {
 		if success {
-			fmt.Printf("health check succeeded for node %s (%s)\n", node.ID, url)
+			log.Default().Printf("health check succeeded for node %s (%s)\n", ID, url)
 		} else {
-			fmt.Printf("health check failed for node %s (%s)\n", node.ID, url)
+			log.Default().Printf("health check failed for node %s (%s)\n", ID, url)
 		}
 	}()
 	if err != nil {

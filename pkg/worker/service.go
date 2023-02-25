@@ -2,21 +2,19 @@ package worker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
-	"keepair/pkg/common"
-	"keepair/pkg/worker/endpoints"
-
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type IService interface {
-	Run(port string) error
+	Run(ctx context.Context, port string) error
 }
 
 type Service struct {
@@ -31,8 +29,24 @@ func NewService(masterNodeURL string) IService {
 	}
 }
 
-func (m *Service) registerSelf(port string) error {
-	registerURL := fmt.Sprintf("%s/register", common.MustGetEnv("MASTER_NODE_URL"))
+func (m *Service) Run(ctx context.Context, port string) error {
+	// attempt to register self to master node until
+	// context is cancelled
+	for err := m.registerSelf(ctx, port); err != nil; {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return fmt.Errorf("failed to register self: %w\n", err)
+		}
+		time.Sleep(time.Second)
+	}
+
+	log.Default().Printf("running WORKER (%s) on port %s\n", m.ID, port)
+
+	server := NewServer()
+	return server.Run(ctx, port)
+}
+
+func (m *Service) registerSelf(ctx context.Context, port string) error {
+	registerURL := fmt.Sprintf("%s/register", m.MasterNodeURL)
 	body := map[string]any{
 		"id":   m.ID,
 		"port": port,
@@ -41,7 +55,11 @@ func (m *Service) registerSelf(port string) error {
 	if err != nil {
 		return err
 	}
-	res, err := http.Post(registerURL, "application/json", bytes.NewReader(bodyStr))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, bytes.NewReader(bodyStr))
+	if err != nil {
+		return err
+	}
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -51,14 +69,4 @@ func (m *Service) registerSelf(port string) error {
 		return fmt.Errorf("failed to register: %s", string(resBody))
 	}
 	return nil
-}
-
-func (m *Service) Run(port string) error {
-	if err := m.registerSelf(port); err != nil {
-		return err
-	}
-	r := gin.Default()
-	r.GET("/health", endpoints.HealthHandler())
-	log.Default().Printf("running WORKER (%s) on port %s\n", m.ID, port)
-	return r.Run(fmt.Sprintf(":%s", port))
 }

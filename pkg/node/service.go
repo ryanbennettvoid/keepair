@@ -2,50 +2,60 @@ package node
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+type CancelFunc func()
 
 type IService interface {
 	RegisterNode(nd Node)
 	UnregisterNode(ID string)
-	RunHealthChecks()
+	RunHealthChecksInBackground() CancelFunc
 }
 
 type Service struct {
-	nodesMu sync.RWMutex
-	Nodes   map[string]Node
+	sync.RWMutex
+	Nodes map[string]Node
 }
 
 func NewService() *Service {
 	return &Service{
-		nodesMu: sync.RWMutex{},
-		Nodes:   make(map[string]Node),
+		Nodes: make(map[string]Node),
 	}
 }
 
 func (m *Service) RegisterNode(nd Node) {
-	m.nodesMu.Lock()
+	m.Lock()
 	if _, ok := m.Nodes[nd.ID]; !ok {
 		m.Nodes[nd.ID] = nd
 	}
-	m.nodesMu.Unlock()
+	m.Unlock()
 }
 
 func (m *Service) UnregisterNode(ID string) {
-	m.nodesMu.Lock()
+	m.Lock()
 	delete(m.Nodes, ID)
-	m.nodesMu.Unlock()
+	m.Unlock()
 }
 
-func (m *Service) RunHealthChecks() {
+func (m *Service) RunHealthChecksInBackground() CancelFunc {
+
+	quit := atomic.Bool{}
+
 	go func() {
-		for {
-			m.nodesMu.RLock()
-			for _, nd := range m.Nodes {
-				nd.PerformHealthCheck()
+		for !quit.Load() {
+			// TODO: check if lock affects read performance
+			m.Lock()
+			for _, node := range m.Nodes {
+				node.PerformHealthCheck()
 			}
-			m.nodesMu.RUnlock()
+			m.Unlock()
 			time.Sleep(time.Second * 5)
 		}
 	}()
+
+	return func() {
+		quit.Store(true)
+	}
 }
