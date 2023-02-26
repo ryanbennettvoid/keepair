@@ -12,7 +12,7 @@ func NewLogger() ILogger {
 	return logrus.New()
 }
 
-func Default() ILogger {
+func Get() ILogger {
 	if defaultLoggerInstance == nil {
 		defaultLoggerInstance = NewLogger()
 	}

@@ -10,18 +10,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Server struct{}
+type Server struct {
+	NodeService node.IService
+}
 
-func NewServer() base_server.IServer {
-	return &Server{}
+func NewServer(nodeService node.IService) base_server.IServer {
+	return &Server{
+		nodeService,
+	}
 }
 
 func (s *Server) Run(ctx context.Context, port string) error {
-	nodeService := node.NewService()
-	nodeService.RunHealthChecksInBackground()
 
 	r := gin.Default()
-	r.POST("/register", endpoints.RegisterNodeHandler(nodeService))
+	r.POST("/register", endpoints.RegisterNodeHandler(s.NodeService))
+	r.GET("/nodes", endpoints.GetNodesHandler(s.NodeService))
 
 	svr := base_server.NewBaseServer(r)
 	return svr.Run(ctx, port)

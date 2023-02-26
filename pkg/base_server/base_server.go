@@ -29,12 +29,12 @@ func (s *BaseServer) Run(ctx context.Context, port string) error {
 
 	r := s.rootRouter
 
-	// all servers have health check
+	// all servers have health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.Data(200, "", []byte("ok"))
 	})
 
-	log.Default().Printf("running on port %s", port)
+	log.Get().Printf("running on port %s", port)
 
 	httpServer := &http.Server{
 		Addr:    ":" + port,
@@ -47,8 +47,10 @@ func (s *BaseServer) Run(ctx context.Context, port string) error {
 		// check if server should quit
 		for {
 			if err := ctx.Err(); err != nil {
-				_ = httpServer.Close()
-				log.Default().Println("closed server")
+				if err = httpServer.Close(); err != nil {
+					panic(err)
+				}
+				log.Get().Println("closed server")
 				errChan <- err
 				break
 			}

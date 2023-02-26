@@ -21,5 +21,6 @@ var RegisterNodeHandler = func(nodeService node.IService) gin.HandlerFunc {
 			return
 		}
 		nodeService.RegisterNode(node.NewNode(body.ID, c.ClientIP(), body.Port))
+		c.Data(200, "", []byte("ok"))
 	}
 }

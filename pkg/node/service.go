@@ -12,6 +12,7 @@ type IService interface {
 	RegisterNode(nd Node)
 	UnregisterNode(ID string)
 	RunHealthChecksInBackground() CancelFunc
+	GetNodes() []Node
 }
 
 type Service struct {
@@ -19,7 +20,7 @@ type Service struct {
 	Nodes map[string]Node
 }
 
-func NewService() *Service {
+func NewService() IService {
 	return &Service{
 		Nodes: make(map[string]Node),
 	}
@@ -28,6 +29,8 @@ func NewService() *Service {
 func (m *Service) RegisterNode(nd Node) {
 	m.Lock()
 	if _, ok := m.Nodes[nd.ID]; !ok {
+		nextIndex := len(m.Nodes)
+		nd.Index = nextIndex
 		m.Nodes[nd.ID] = nd
 	}
 	m.Unlock()
@@ -58,4 +61,12 @@ func (m *Service) RunHealthChecksInBackground() CancelFunc {
 	return func() {
 		quit.Store(true)
 	}
+}
+
+func (m *Service) GetNodes() []Node {
+	nodes := make([]Node, 0)
+	for _, v := range m.Nodes {
+		nodes = append(nodes, v)
+	}
+	return nodes
 }

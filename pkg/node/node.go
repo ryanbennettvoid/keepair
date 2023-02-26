@@ -2,17 +2,19 @@ package node
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"path"
 	"time"
+
+	"keepair/pkg/log"
 )
 
 type Node struct {
-	ID                   string
-	Address              string
-	LastHealthCheckTime  time.Time
-	LastHealthCheckError error
+	Index                int       `json:"index"`
+	ID                   string    `json:"id"`
+	Address              string    `json:"address"`
+	LastHealthCheckTime  time.Time `json:"lastHealthCheckTime"`
+	LastHealthCheckError error     `json:"lastHealthCheckError"`
 }
 
 func NewNode(ID, address, port string) Node {
@@ -35,9 +37,9 @@ func (node *Node) PerformHealthCheck() {
 	success := err == nil && res.StatusCode == 200
 	defer func() {
 		if success {
-			log.Default().Printf("health check succeeded for node %s (%s)\n", ID, url)
+			log.Get().Printf("health check succeeded for node %s (%s)", ID, url)
 		} else {
-			log.Default().Printf("health check failed for node %s (%s)\n", ID, url)
+			log.Get().Printf("health check failed for node %s (%s)", ID, url)
 		}
 	}()
 	if err != nil {

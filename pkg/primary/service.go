@@ -21,6 +21,6 @@ func (m *Service) Run(ctx context.Context, port string) error {
 	cancelHealthCheck := nodeService.RunHealthChecksInBackground()
 	defer cancelHealthCheck()
 
-	server := NewServer()
+	server := NewServer(nodeService)
 	return server.Run(ctx, port)
 }
