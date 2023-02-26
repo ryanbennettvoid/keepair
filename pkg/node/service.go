@@ -33,19 +33,19 @@ func NewService() IService {
 
 func (m *Service) RegisterNode(nd Node) {
 	m.Lock()
+	defer m.Unlock()
 	if _, ok := m.Nodes[nd.ID]; !ok {
 		nextIndex := len(m.Nodes)
 		nd.Index = nextIndex
 		m.Nodes[nd.ID] = nd
 		m.Indexes[nextIndex] = nd.ID
 	}
-	m.Unlock()
 }
 
 func (m *Service) UnregisterNode(ID string) {
 	m.Lock()
+	defer m.Unlock()
 	delete(m.Nodes, ID)
-	m.Unlock()
 }
 
 func (m *Service) RunHealthChecksInBackground() CancelFunc {
@@ -55,12 +55,13 @@ func (m *Service) RunHealthChecksInBackground() CancelFunc {
 	go func() {
 		for !quit.Load() {
 			// TODO: check if lock affects read performance
-			m.Lock()
-			for i, n := range m.Nodes {
+			nodes := m.GetNodes()
+			for _, n := range nodes {
 				n.PerformHealthCheck()
-				m.Nodes[i] = n
+				m.Lock()
+				m.Nodes[n.ID] = n
+				m.Unlock()
 			}
-			m.Unlock()
 			time.Sleep(time.Second * 5)
 		}
 	}()
@@ -71,6 +72,8 @@ func (m *Service) RunHealthChecksInBackground() CancelFunc {
 }
 
 func (m *Service) GetNodes() []Node {
+	m.RLock()
+	defer m.RUnlock()
 	nodes := make([]Node, 0)
 	for _, v := range m.Nodes {
 		nodes = append(nodes, v)
@@ -93,5 +96,7 @@ func (m *Service) GetNodeByIndex(idx int) (Node, error) {
 }
 
 func (m *Service) GetNumNodes() int {
+	m.RLock()
+	defer m.RUnlock()
 	return len(m.Indexes)
 }

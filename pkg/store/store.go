@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"sync"
 )
 
 type IStore interface {
@@ -10,6 +11,7 @@ type IStore interface {
 }
 
 type MemStore struct {
+	sync.RWMutex
 	Data map[string][]byte
 }
 
@@ -20,11 +22,15 @@ func NewMemStore() IStore {
 }
 
 func (m *MemStore) Set(key string, value []byte) error {
+	m.Lock()
 	m.Data[key] = value
+	m.Unlock()
 	return nil
 }
 
 func (m *MemStore) Get(key string) ([]byte, error) {
+	m.RLock()
+	defer m.RUnlock()
 	if value, ok := m.Data[key]; ok {
 		return value, nil
 	}
