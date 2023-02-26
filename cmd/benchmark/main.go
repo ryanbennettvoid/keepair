@@ -35,7 +35,7 @@ func main() {
 		}
 	}()
 
-	numWorkers := 8
+	numWorkers := 2
 	for i := 0; i < numWorkers; i++ {
 		workerPort := fmt.Sprintf("%d", 9001+i)
 		go func() {
@@ -50,28 +50,40 @@ func main() {
 	time.Sleep(time.Millisecond * 500)
 
 	// set keys
-	numObjects := 10_000
-	maxConcurrency := 1_000
+	numObjects := 2_000
+	maxConcurrency := 100
 
-	limiter := make(chan struct{}, maxConcurrency)
+	type KV struct {
+		Key   string
+		Value []byte
+	}
+
+	items := make([]KV, 0)
+	for i := 0; i < numObjects; i++ {
+		numChars := (rand.Int() % 20) + 1
+		items = append(items, KV{
+			Key:   common.GenerateRandomString(numChars),
+			Value: []byte(common.GenerateRandomString(50_000)),
+		})
+	}
+
+	log.Default().Printf("generated %d items", len(items))
 
 	started := time.Now()
+
+	limiter := make(chan struct{}, maxConcurrency)
 	wg := sync.WaitGroup{}
-	for i := 0; i < numObjects; i++ {
+	for i := 0; i < len(items); i++ {
 		limiter <- struct{}{}
 		wg.Add(1)
-		go func() {
+		go func(kv KV) {
 			defer func() {
 				wg.Done()
 				<-limiter
 			}()
 
-			numChars := (rand.Int() % 20) + 1
-			key := common.GenerateRandomString(numChars)
-			value := []byte(common.GenerateRandomString(50_000))
-
-			url := fmt.Sprintf("%s/set/%s", masterNodeURL, key)
-			res, err := http.Post(url, "", bytes.NewReader(value))
+			url := fmt.Sprintf("%s/set/%s", masterNodeURL, kv.Key)
+			res, err := http.Post(url, "", bytes.NewReader(kv.Value))
 			if err != nil {
 				panic(err)
 			}
@@ -82,7 +94,7 @@ func main() {
 			if res.StatusCode != 200 {
 				panic(body)
 			}
-		}()
+		}(items[i])
 	}
 	wg.Wait()
 	duration := time.Now().Sub(started).Milliseconds()

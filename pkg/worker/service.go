@@ -48,10 +48,10 @@ func (m *Service) Run(ctx context.Context, port string) error {
 			return fmt.Errorf("context err (%w) while registering self: %s\n", contextErr, err.Error())
 			break
 		}
-		log.Get().Printf("ATTEMPTING REGISTER: %s", m.PrimaryNodeURL)
+		log.Get().Printf("worker register self failed- trying again (%s)", m.ID)
 		time.Sleep(time.Millisecond * 200)
 	}
-	log.Get().Println("REGISTER SUCCESS")
+	log.Get().Println("worker register self success (%s)", m.ID)
 
 	errChan := make(chan error)
 
