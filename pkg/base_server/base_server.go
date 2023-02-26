@@ -2,8 +2,9 @@ package base_server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
-	"time"
 
 	"keepair/pkg/log"
 
@@ -41,30 +42,25 @@ func (s *BaseServer) Run(ctx context.Context, port string) error {
 		Handler: r,
 	}
 
-	errChan := make(chan error)
+	serverErrChan := make(chan error)
 
 	go func() {
-		// check if server should quit
-		for {
-			if err := ctx.Err(); err != nil {
-				if err = httpServer.Close(); err != nil {
-					panic(err)
-				}
-				log.Get().Println("closed server")
-				errChan <- err
-				break
-			}
-			time.Sleep(time.Millisecond * 100)
-		}
-	}()
-
-	go func() {
-		if err := httpServer.ListenAndServe(); err != nil {
-			errChan <- err
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrChan <- err
 			return
 		}
-		errChan <- nil
+		serverErrChan <- nil
 	}()
 
-	return <-errChan
+	for {
+		select {
+		case <-ctx.Done():
+			if closeErr := httpServer.Close(); closeErr != nil {
+				panic(closeErr)
+			}
+			return fmt.Errorf("server closed: %w", ctx.Err())
+		case err := <-serverErrChan:
+			return err
+		}
+	}
 }

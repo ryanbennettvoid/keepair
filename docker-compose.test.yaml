@@ -10,8 +10,8 @@ services:
       - .:/root
     mem_limit: 1024m
     networks:
-      - keepair_network
+      - keepair_test_network
 
 networks:
-  keepair_network:
-    name: keepair_network
+  keepair_test_network:
+    name: keepair_test_network

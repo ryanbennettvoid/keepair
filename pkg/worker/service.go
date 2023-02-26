@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"keepair/pkg/log"
+	"keepair/pkg/store"
 
 	"github.com/google/uuid"
 )
@@ -21,55 +22,46 @@ type IService interface {
 type Service struct {
 	ID             string
 	PrimaryNodeURL string
+	Store          store.IStore
 }
 
 func NewService(primaryNodeURL string) IService {
 	return &Service{
 		ID:             uuid.NewString(),
 		PrimaryNodeURL: primaryNodeURL,
+		Store:          store.NewMemStore(),
 	}
 }
 
 func (m *Service) Run(ctx context.Context, port string) error {
-	registerErr := make(chan error)
-	serverErr := make(chan error)
-
-	go func() {
-		// attempt to register self to primary node until
-		// context is cancelled
-		success := false
-		for !success {
-			err := m.registerSelf(ctx, port)
-			if err == nil {
-				success = true
-				break
-			}
-			log.Get().Printf("register self ERR: %s", err)
-			if contextErr := ctx.Err(); contextErr != nil {
-				registerErr <- fmt.Errorf("context err (%w) while registering self: %s\n", contextErr, err.Error())
-				return
-			}
-			log.Get().Printf("ATTEMPTING REGISTER: %s", m.PrimaryNodeURL)
-			time.Sleep(time.Millisecond * 500)
+	// attempt to register self to primary node until
+	// context is cancelled or success
+	success := false
+	for !success {
+		err := m.registerSelf(ctx, port)
+		if err == nil {
+			success = true
+			break
 		}
-		log.Get().Println("REGISTER SUCCESS")
-	}()
+		log.Get().Printf("register self ERR: %s", err)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return fmt.Errorf("context err (%w) while registering self: %s\n", contextErr, err.Error())
+			break
+		}
+		log.Get().Printf("ATTEMPTING REGISTER: %s", m.PrimaryNodeURL)
+		time.Sleep(time.Millisecond * 200)
+	}
+	log.Get().Println("REGISTER SUCCESS")
+
+	errChan := make(chan error)
 
 	go func() {
 		log.Get().Printf("running WORKER (%s) on port %s\n", m.ID, port)
-		server := NewServer()
-		serverErr <- server.Run(ctx, port)
+		server := NewServer(m.Store)
+		errChan <- server.Run(ctx, port)
 	}()
 
-	// wait for either error to occur
-	for {
-		select {
-		case err := <-registerErr:
-			return err
-		case err := <-serverErr:
-			return err
-		}
-	}
+	return <-errChan
 }
 
 func (m *Service) registerSelf(ctx context.Context, port string) error {
