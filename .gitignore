@@ -1,3 +1,4 @@
 .idea
 .cache
 .ash_history
+*.log

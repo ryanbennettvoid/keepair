@@ -14,6 +14,10 @@ var GetNodesHandler = func(nodeService node.IService) gin.HandlerFunc {
 
 		mu := sync.Mutex{}
 		nodes := nodeService.GetNodes()
+		if len(nodes) == 0 {
+			c.Data(500, "", []byte("no nodes available"))
+			return
+		}
 
 		wg := sync.WaitGroup{}
 		for i, n := range nodes {
@@ -21,8 +25,7 @@ var GetNodesHandler = func(nodeService node.IService) gin.HandlerFunc {
 			go func(i int, n node.Node) {
 				defer wg.Done()
 
-				err := n.LoadStats()
-				if err != nil {
+				if err := n.LoadStats(); err != nil {
 					log.Get().Printf("LoadStats ERR: %s", err)
 				}
 

@@ -23,8 +23,9 @@ func NewServer(nodeService node.IService) base_server.IServer {
 func (s *Server) Run(ctx context.Context, port string) error {
 
 	r := gin.Default()
-	r.POST("/register", endpoints.RegisterNodeHandler(s.NodeService))
 	r.GET("/nodes", endpoints.GetNodesHandler(s.NodeService))
+	r.POST("/nodes", endpoints.RegisterNodeHandler(s.NodeService))
+	r.DELETE("/nodes/:nodeID", endpoints.UnregisterNodeHandler(s.NodeService))
 	r.POST("/keys/:key", endpoints.SetKeyHandler(s.NodeService))
 	r.GET("/keys/:key", endpoints.GetKeyHandler(s.NodeService))
 	r.DELETE("/keys/:key", endpoints.DeleteKeyHandler(s.NodeService))

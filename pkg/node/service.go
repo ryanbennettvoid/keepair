@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"keepair/pkg/clients"
+	"keepair/pkg/common"
 	"keepair/pkg/log"
 	"keepair/pkg/partition"
 )
@@ -14,8 +15,8 @@ import (
 type CancelFunc func()
 
 type IService interface {
-	RegisterNode(nd Node)
-	UnregisterNode(ID string)
+	RegisterNode(nd Node) error
+	UnregisterNode(ID string) error
 	RunHealthChecksInBackground() CancelFunc
 	GetNodes() []Node
 	GetNodeByIndex(idx int) (Node, error)
@@ -35,26 +36,34 @@ func NewService() IService {
 	}
 }
 
-func (m *Service) RegisterNode(nd Node) {
+func (m *Service) RegisterNode(nd Node) error {
 	m.Lock()
 	defer m.Unlock()
 
-	if _, ok := m.Nodes[nd.ID]; !ok {
-		nextIndex := len(m.Nodes)
-		nd.Index = nextIndex
-		m.Nodes[nd.ID] = nd
-		m.Indexes[nextIndex] = nd.ID
+	// consider registration to be a health check
+	nd.LastHealthCheckTime = time.Now()
+
+	if err := m.rebalanceNodes(AddNode, nd); err != nil {
+		return fmt.Errorf("failed to rebalance nodes: %w", err)
 	}
 
-	if err := m.rebalanceNodes(); err != nil {
-		panic(err) // TODO: handle this better?
-	}
+	return nil
 }
 
-func (m *Service) UnregisterNode(ID string) {
+func (m *Service) UnregisterNode(ID string) error {
 	m.Lock()
 	defer m.Unlock()
-	delete(m.Nodes, ID)
+
+	nd, ok := m.Nodes[ID]
+	if !ok {
+		return fmt.Errorf("failed to find node: %s", ID)
+	}
+
+	if err := m.rebalanceNodes(DeleteNode, nd); err != nil {
+		return fmt.Errorf("failed to rebalance nodes: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Service) RunHealthChecksInBackground() CancelFunc {
@@ -110,11 +119,33 @@ func (m *Service) GetNumNodes() int {
 	return len(m.Indexes)
 }
 
+type RebalanceOperation string
+
+var AddNode = RebalanceOperation("add")
+var DeleteNode = RebalanceOperation("delete")
+
 // rebalanceNodes redistributes data to be stored evenly across all nodes.
 // Caller must handle locks.
-func (m *Service) rebalanceNodes() error {
+func (m *Service) rebalanceNodes(operation RebalanceOperation, opNode Node) error {
 
-	if len(m.Nodes) <= 1 {
+	// make copy of nodes map
+	nodes := Map(m.Nodes)
+	if operation == AddNode {
+		nodes = nodes.Add(opNode)
+	}
+	if operation == DeleteNode {
+		nodes = nodes.Delete(opNode)
+		opNode.Index = -1 // for logging
+	}
+	indexes := nodes.CreateIndexes()
+	numNodes := len(nodes)
+
+	defer func() {
+		m.Nodes = nodes
+		m.Indexes = indexes
+	}()
+
+	if numNodes == 0 {
 		return nil
 	}
 
@@ -122,9 +153,8 @@ func (m *Service) rebalanceNodes() error {
 	defer log.Get().Printf("REBALANCE DONE")
 
 	// for each node, regenerate partition keys and move data to correct node
-	for _, n := range m.Nodes {
+	for _, n := range nodes {
 		log.Get().Printf("REBALANCE NODE %s", n.ID)
-
 		workerNodeURL := fmt.Sprintf("http://%s", n.Address)
 		workerClient := clients.NewWorkerClient(workerNodeURL)
 		entryChan, errChan := workerClient.StreamEntries()
@@ -134,27 +164,43 @@ func (m *Service) rebalanceNodes() error {
 			case err := <-errChan:
 				return err
 			case entry := <-entryChan:
-				actualNodeIndex := n.Index
-				expectedNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, len(m.Nodes))
-				if actualNodeIndex != expectedNodeIndex {
-					// move data from actual node to expected node
-					newNodeID := m.Indexes[expectedNodeIndex]
-					newNode := m.Nodes[newNodeID]
-					newNodeURL := fmt.Sprintf("http://%s", newNode.Address)
-					newNodeClient := clients.NewWorkerClient(newNodeURL)
-					// set key on new node
-					if err := newNodeClient.SetKey(entry.Key, entry.Value); err != nil {
-						return fmt.Errorf("failed to set key: %w", err)
+				switch operation {
+				case AddNode:
+					sourceNode := nodes[indexes[n.Index]]
+					targetNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, numNodes)
+					targetNode := nodes[indexes[targetNodeIndex]]
+					if sourceNode.ID != targetNode.ID {
+						if err := transferEntry(entry, sourceNode, targetNode); err != nil {
+							return err // this would be bad!
+						}
 					}
-					// delete key on old node
-					if err := workerClient.DeleteKey(entry.Key); err != nil {
-						return fmt.Errorf("failed to delete key: %w", err)
+				case DeleteNode:
+					sourceNode := opNode
+					targetNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, numNodes)
+					targetNode := nodes[indexes[targetNodeIndex]]
+					if err := transferEntry(entry, sourceNode, targetNode); err != nil {
+						return err // this would be bad!
 					}
-					log.Get().Printf("moved key (%s) from node %d to %d", entry.Key, actualNodeIndex, expectedNodeIndex)
 				}
 			}
 		}
 	}
 
+	return nil
+}
+
+// transferEntry moves data from source node to target node
+func transferEntry(entry common.Entry, source Node, target Node) error {
+	sourceNodeClient := clients.NewWorkerClient(fmt.Sprintf("http://%s", source.Address))
+	targetNodeClient := clients.NewWorkerClient(fmt.Sprintf("http://%s", target.Address))
+	// set key on new node
+	if err := targetNodeClient.SetKey(entry.Key, entry.Value); err != nil {
+		return fmt.Errorf("failed to set key: %w", err)
+	}
+	// delete key on old node
+	if err := sourceNodeClient.DeleteKey(entry.Key); err != nil {
+		return fmt.Errorf("failed to delete key: %w", err)
+	}
+	log.Get().Printf("transferred key (%s) from node %d|%s to %d|%s", entry.Key, source.Index, source.Address, target.Index, target.Address)
 	return nil
 }

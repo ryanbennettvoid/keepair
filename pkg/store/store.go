@@ -17,12 +17,14 @@ type IStore interface {
 
 type MemStore struct {
 	sync.RWMutex
-	Data map[string][]byte
+	Indexes map[int]string
+	Data    map[string][]byte
 }
 
 func NewMemStore() IStore {
 	return &MemStore{
-		Data: make(map[string][]byte),
+		Indexes: make(map[int]string),
+		Data:    make(map[string][]byte),
 	}
 }
 
@@ -43,6 +45,7 @@ func (m *MemStore) Delete(key string) error {
 func (m *MemStore) Get(key string) ([]byte, error) {
 	m.RLock()
 	defer m.RUnlock()
+
 	if value, ok := m.Data[key]; ok {
 		return value, nil
 	}
@@ -52,12 +55,16 @@ func (m *MemStore) Get(key string) ([]byte, error) {
 func (m *MemStore) GetObjectCount() int {
 	m.RLock()
 	defer m.RUnlock()
+
 	return len(m.Data)
 }
 
 func (m *MemStore) StreamEntries() <-chan common.Entry {
 	ch := make(chan common.Entry)
 	go func() {
+		m.RLock()
+		defer m.RUnlock()
+
 		for k, v := range m.Data {
 			ch <- common.Entry{
 				Key:   k,

@@ -21,6 +21,11 @@ var SetKeyHandler = func(nodeService node.IService) gin.HandlerFunc {
 		}
 
 		numNodes := nodeService.GetNumNodes()
+		if numNodes == 0 {
+			c.Data(500, "", []byte("no nodes available"))
+			return
+		}
+
 		partitionKey := partition.GenerateDeterministicPartitionKey(key, numNodes)
 		n, err := nodeService.GetNodeByIndex(partitionKey)
 		if err != nil {

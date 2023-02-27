@@ -15,6 +15,7 @@ var StreamEntriesHandler = func(store store.IStore) gin.HandlerFunc {
 		c.Writer.Header().Set("Content-Type", "application/octet-stream")
 		c.Writer.Header().Set("Cache-Control", "no-cache")
 		c.Writer.WriteHeaderNow()
+		c.Writer.Flush()
 
 		entryChan := store.StreamEntries()
 		for entry := range entryChan {

@@ -16,6 +16,7 @@ import (
 )
 
 type IService interface {
+	GetID() string
 	Run(ctx context.Context, port string) error
 }
 
@@ -33,18 +34,30 @@ func NewService(primaryNodeURL string) IService {
 	}
 }
 
+func (m *Service) GetID() string {
+	return m.ID
+}
+
 func (m *Service) Run(ctx context.Context, port string) error {
+
+	go func() {
+		for {
+			log.Get().Printf("STORAGE (%s): %d", m.ID, m.Store.GetObjectCount())
+			time.Sleep(time.Second / 2)
+		}
+	}()
 
 	errChan := make(chan error)
 
 	go func() {
 		log.Get().Printf("running WORKER (%s) on port %s\n", m.ID, port)
-		server := NewServer(m.Store)
+		server := NewServer(m.ID, m.Store)
 		errChan <- server.Run(ctx, port)
 	}()
 
 	// attempt to register self to primary node until
 	// context is cancelled or success
+	// TODO: don't repeat if rebalance failed
 	success := false
 	for !success {
 		err := m.registerSelf(ctx, port)
@@ -60,13 +73,13 @@ func (m *Service) Run(ctx context.Context, port string) error {
 		log.Get().Printf("worker register self failed- trying again (%s)", m.ID)
 		time.Sleep(time.Millisecond * 200)
 	}
-	log.Get().Println("worker register self success (%s)", m.ID)
+	log.Get().Printf("worker register self success: %s", m.ID)
 
 	return <-errChan
 }
 
 func (m *Service) registerSelf(ctx context.Context, port string) error {
-	registerURL := fmt.Sprintf("%s/register", m.PrimaryNodeURL)
+	registerURL := fmt.Sprintf("%s/nodes", m.PrimaryNodeURL)
 	body := map[string]any{
 		"id":   m.ID,
 		"port": port,

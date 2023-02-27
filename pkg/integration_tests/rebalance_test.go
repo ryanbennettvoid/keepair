@@ -98,8 +98,10 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 	}
 
 	// run worker1 node in background
+	worker1ID := ""
 	go func() {
 		worker1 := worker.NewService(masterNodeURL)
+		worker1ID = worker1.GetID()
 		if err := worker1.Run(allContext, "8002"); err != nil {
 			errChan <- err
 		}
@@ -126,6 +128,35 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 
 		assert.Equalf(t, count0+count1, numObjects, "counts should add up to total number of objects")
 		assert.Truef(t, math.Abs(float64(count0-count1)) < float64(numObjects)*0.10, "delta between counts should be less than 10 percent of total")
+	}
+
+	// unregister worker1, which should trigger rebalance
+	{
+		req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://0.0.0.0:8000/nodes/%s", worker1ID), nil)
+		panicErr(err)
+		res, err := http.DefaultClient.Do(req)
+		panicErr(err)
+		assert.Equal(t, 200, res.StatusCode)
+	}
+
+	// wait for rebalance to finish
+	time.Sleep(time.Millisecond * 500)
+
+	// check nodes again, should be only a single node containing all objects
+	{
+		res, err := http.Get("http://0.0.0.0:8000/nodes")
+		panicErr(err)
+		assert.Equal(t, 200, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		assert.NoError(t, err)
+		var nodes struct {
+			Nodes []node.Node `json:"nodes"`
+		}
+		err = json.Unmarshal(body, &nodes)
+		assert.NoError(t, err)
+		assert.Len(t, nodes.Nodes, 1)
+		assert.Equal(t, 0, nodes.Nodes[0].Index)
+		assert.Equal(t, numObjects, nodes.Nodes[0].Stats.ObjectCount)
 	}
 
 	cancel() // close servers

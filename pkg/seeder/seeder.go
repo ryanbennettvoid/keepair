@@ -11,6 +11,12 @@ import (
 	"keepair/pkg/common"
 )
 
+func checkErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 type Seeder struct {
 	MasterNodeURL  string
 	MaxConcurrency int
@@ -35,6 +41,10 @@ func (s Seeder) SeedKVs(count int) (map[string][]byte, error) {
 		items[key] = []byte(common.GenerateRandomString(s.ObjectSize))
 	}
 
+	t := &http.Transport{}
+	t.MaxIdleConnsPerHost = 10
+	http.DefaultClient.Transport = t
+
 	limiter := make(chan struct{}, s.MaxConcurrency)
 	wg := sync.WaitGroup{}
 	for k, v := range items {
@@ -43,21 +53,19 @@ func (s Seeder) SeedKVs(count int) (map[string][]byte, error) {
 
 		go func(key string, value []byte) {
 			defer func() {
-				wg.Done()
 				<-limiter
+				wg.Done()
 			}()
 
 			url := fmt.Sprintf("%s/keys/%s", s.MasterNodeURL, key)
-			res, err := http.Post(url, "", bytes.NewReader(value))
-			if err != nil {
-				panic(err)
-			}
+			req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(value))
+			checkErr(err)
+			res, err := http.DefaultClient.Do(req)
+			checkErr(err)
 			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				panic(err)
-			}
+			checkErr(err)
 			if res.StatusCode != 200 {
-				panic(body)
+				panic(string(body))
 			}
 		}(k, v)
 

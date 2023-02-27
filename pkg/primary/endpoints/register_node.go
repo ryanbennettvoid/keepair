@@ -20,7 +20,13 @@ var RegisterNodeHandler = func(nodeService node.IService) gin.HandlerFunc {
 			c.Data(400, "", []byte(fmt.Sprintf("error: %s", err.Error())))
 			return
 		}
-		nodeService.RegisterNode(node.NewNode(body.ID, c.ClientIP(), body.Port))
+		
+		err := nodeService.RegisterNode(node.NewNode(body.ID, c.ClientIP(), body.Port))
+		if err != nil {
+			c.Data(500, "", []byte(err.Error()))
+			return
+		}
+
 		c.Data(200, "", []byte("ok"))
 	}
 }
