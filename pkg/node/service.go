@@ -119,7 +119,7 @@ func (m *Service) rebalanceNodes() error {
 	}
 
 	log.Get().Printf("REBALANCE STARTED...")
-	defer log.Get().Printf("REBALANCE DONE...")
+	defer log.Get().Printf("REBALANCE DONE")
 
 	// for each node, regenerate partition keys and move data to correct node
 	for _, n := range m.Nodes {
@@ -134,7 +134,6 @@ func (m *Service) rebalanceNodes() error {
 			case err := <-errChan:
 				return err
 			case entry := <-entryChan:
-				log.Get().Printf("REBALANCE ENTRY: %s: %d", entry.Key, len(entry.Value))
 				actualNodeIndex := n.Index
 				expectedNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, len(m.Nodes))
 				if actualNodeIndex != expectedNodeIndex {
@@ -151,6 +150,7 @@ func (m *Service) rebalanceNodes() error {
 					if err := workerClient.DeleteKey(entry.Key); err != nil {
 						return fmt.Errorf("failed to delete key: %w", err)
 					}
+					log.Get().Printf("moved key (%s) from node %d to %d", entry.Key, actualNodeIndex, expectedNodeIndex)
 				}
 			}
 		}
