@@ -23,8 +23,11 @@ func NewServer(store store.IStore) base_server.IServer {
 func (s *Server) Run(ctx context.Context, port string) error {
 	r := gin.Default()
 
-	r.POST("/set/:key", endpoints.SetKeyHandler(s.Store))
-	r.GET("/get/:key", endpoints.GetKeyHandler(s.Store))
+	r.POST("/keys/:key", endpoints.SetKeyHandler(s.Store))
+	r.DELETE("/keys/:key", endpoints.DeleteKeyHandler(s.Store))
+	r.GET("/keys/:key", endpoints.GetKeyHandler(s.Store))
+	r.GET("/stats", endpoints.GetStatsHandler(s.Store))
+	r.GET("/stream-entries", endpoints.StreamEntriesHandler(s.Store))
 
 	svr := base_server.NewBaseServer(r)
 	return svr.Run(ctx, port)

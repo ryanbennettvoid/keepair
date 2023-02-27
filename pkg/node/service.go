@@ -5,6 +5,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"keepair/pkg/clients"
+	"keepair/pkg/log"
+	"keepair/pkg/partition"
 )
 
 type CancelFunc func()
@@ -34,11 +38,16 @@ func NewService() IService {
 func (m *Service) RegisterNode(nd Node) {
 	m.Lock()
 	defer m.Unlock()
+
 	if _, ok := m.Nodes[nd.ID]; !ok {
 		nextIndex := len(m.Nodes)
 		nd.Index = nextIndex
 		m.Nodes[nd.ID] = nd
 		m.Indexes[nextIndex] = nd.ID
+	}
+
+	if err := m.rebalanceNodes(); err != nil {
+		panic(err) // TODO: handle this better?
 	}
 }
 
@@ -99,4 +108,53 @@ func (m *Service) GetNumNodes() int {
 	m.RLock()
 	defer m.RUnlock()
 	return len(m.Indexes)
+}
+
+// rebalanceNodes redistributes data to be stored evenly across all nodes.
+// Caller must handle locks.
+func (m *Service) rebalanceNodes() error {
+
+	if len(m.Nodes) <= 1 {
+		return nil
+	}
+
+	log.Get().Printf("REBALANCE STARTED...")
+	defer log.Get().Printf("REBALANCE DONE...")
+
+	// for each node, regenerate partition keys and move data to correct node
+	for _, n := range m.Nodes {
+		log.Get().Printf("REBALANCE NODE %s", n.ID)
+
+		workerNodeURL := fmt.Sprintf("http://%s", n.Address)
+		workerClient := clients.NewWorkerClient(workerNodeURL)
+		entryChan, errChan := workerClient.StreamEntries()
+
+		for {
+			select {
+			case err := <-errChan:
+				return err
+			case entry := <-entryChan:
+				log.Get().Printf("REBALANCE ENTRY: %s: %d", entry.Key, len(entry.Value))
+				actualNodeIndex := n.Index
+				expectedNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, len(m.Nodes))
+				if actualNodeIndex != expectedNodeIndex {
+					// move data from actual node to expected node
+					newNodeID := m.Indexes[expectedNodeIndex]
+					newNode := m.Nodes[newNodeID]
+					newNodeURL := fmt.Sprintf("http://%s", newNode.Address)
+					newNodeClient := clients.NewWorkerClient(newNodeURL)
+					// set key on new node
+					if err := newNodeClient.SetKey(entry.Key, entry.Value); err != nil {
+						return fmt.Errorf("failed to set key: %w", err)
+					}
+					// delete key on old node
+					if err := workerClient.DeleteKey(entry.Key); err != nil {
+						return fmt.Errorf("failed to delete key: %w", err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }

@@ -9,13 +9,11 @@ import (
 	"keepair/pkg/primary"
 	"keepair/pkg/seeder"
 	"keepair/pkg/worker"
-
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
 
-	gin.SetMode(gin.ReleaseMode)
+	// gin.SetMode(gin.ReleaseMode)
 
 	primaryPort := "9000"
 	masterNodeURL := fmt.Sprintf("http://0.0.0.0:%s", primaryPort)
@@ -30,22 +28,20 @@ func main() {
 		}
 	}()
 
-	numWorkers := 2
-	for i := 0; i < numWorkers; i++ {
-		workerPort := fmt.Sprintf("%d", 9001+i)
-		go func() {
-			service := worker.NewService(masterNodeURL)
-			if err := service.Run(ctx, workerPort); err != nil {
-				panic(err)
-			}
-		}()
-	}
+	// start first worker node
+	go func() {
+		workerPort := "9001"
+		service := worker.NewService(masterNodeURL)
+		if err := service.Run(ctx, workerPort); err != nil {
+			panic(err)
+		}
+	}()
 
 	// wait for workers to register
 	time.Sleep(time.Millisecond * 500)
 
 	// set keys
-	numObjects := 2_000
+	numObjects := 100
 	maxConcurrency := 100
 	objectSize := 50_000
 
@@ -58,4 +54,17 @@ func main() {
 	duration := time.Now().Sub(started).Milliseconds()
 	log.Get().Printf("done in %dms", duration)
 
+	// start second worker node to trigger rebalance
+	go func() {
+		workerPort := "9002"
+		service := worker.NewService(masterNodeURL)
+		if err := service.Run(ctx, workerPort); err != nil {
+			panic(err)
+		}
+	}()
+
+	log.Get().Printf("added new worker")
+
+	block := make(chan struct{})
+	<-block
 }

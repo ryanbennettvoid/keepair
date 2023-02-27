@@ -34,6 +34,15 @@ func NewService(primaryNodeURL string) IService {
 }
 
 func (m *Service) Run(ctx context.Context, port string) error {
+
+	errChan := make(chan error)
+
+	go func() {
+		log.Get().Printf("running WORKER (%s) on port %s\n", m.ID, port)
+		server := NewServer(m.Store)
+		errChan <- server.Run(ctx, port)
+	}()
+
 	// attempt to register self to primary node until
 	// context is cancelled or success
 	success := false
@@ -52,14 +61,6 @@ func (m *Service) Run(ctx context.Context, port string) error {
 		time.Sleep(time.Millisecond * 200)
 	}
 	log.Get().Println("worker register self success (%s)", m.ID)
-
-	errChan := make(chan error)
-
-	go func() {
-		log.Get().Printf("running WORKER (%s) on port %s\n", m.ID, port)
-		server := NewServer(m.Store)
-		errChan <- server.Run(ctx, port)
-	}()
 
 	return <-errChan
 }

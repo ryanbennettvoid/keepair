@@ -7,3 +7,6 @@ test:
 
 bench:
 	go run cmd/benchmark/main.go
+
+rebalance:
+	go run cmd/rebalance/main.go

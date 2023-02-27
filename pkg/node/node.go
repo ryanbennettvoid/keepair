@@ -3,18 +3,20 @@ package node
 import (
 	"fmt"
 	"net/http"
-	"path"
 	"time"
 
+	"keepair/pkg/clients"
+	"keepair/pkg/common"
 	"keepair/pkg/log"
 )
 
 type Node struct {
-	Index                int       `json:"index"`
-	ID                   string    `json:"id"`
-	Address              string    `json:"address"`
-	LastHealthCheckTime  time.Time `json:"lastHealthCheckTime"`
-	LastHealthCheckError error     `json:"lastHealthCheckError"`
+	Index                int              `json:"index"`
+	ID                   string           `json:"id"`
+	Address              string           `json:"address"`
+	LastHealthCheckTime  time.Time        `json:"lastHealthCheckTime"`
+	LastHealthCheckError error            `json:"lastHealthCheckError"`
+	Stats                common.NodeStats `json:"stats"`
 }
 
 func NewNode(ID, address, port string) Node {
@@ -31,7 +33,7 @@ func (node *Node) PerformHealthCheck() {
 	address := node.Address
 	ID := node.ID
 
-	url := "http://" + path.Join(address, "/health")
+	url := fmt.Sprintf("http://%s/health", address)
 
 	res, err := http.Get(url)
 	success := err == nil && res.StatusCode == 200
@@ -53,4 +55,15 @@ func (node *Node) PerformHealthCheck() {
 	}
 
 	node.LastHealthCheckError = nil
+}
+
+func (node *Node) LoadStats() error {
+	workerNodeURL := fmt.Sprintf("http://%s", node.Address)
+	client := clients.NewWorkerClient(workerNodeURL)
+	stats, err := client.GetStats()
+	if err != nil {
+		return err
+	}
+	node.Stats = stats
+	return nil
 }

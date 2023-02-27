@@ -18,10 +18,10 @@ type Stats struct {
 	Index3 int
 }
 
-// TestGetDeterministicPartitionKey checks that the function
+// TestGenerateDeterministicPartitionKey checks that the function
 // generates roughly evenly distributed indexes for 0 to N,
 // with N being the number of partitions
-func TestGetDeterministicPartitionKey(t *testing.T) {
+func TestGenerateDeterministicPartitionKey(t *testing.T) {
 
 	numPartitions := 4
 	numKeys := 1000
@@ -36,7 +36,7 @@ func TestGetDeterministicPartitionKey(t *testing.T) {
 	for i := 0; i < numKeys; i++ {
 		numChars := (rand.Int() % 20) + 1
 		key := common.GenerateRandomString(numChars)
-		index := GetDeterministicPartitionKey(key, numPartitions)
+		index := GenerateDeterministicPartitionKey(key, numPartitions)
 		switch index {
 		case 0:
 			stats.Index0++
