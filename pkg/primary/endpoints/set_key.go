@@ -40,6 +40,11 @@ var SetKeyHandler = func(nodeService node.IService) gin.HandlerFunc {
 		}
 		defer c.Request.Body.Close()
 
+		if len(postBody) == 0 {
+			c.Data(400, "", []byte("empty value"))
+			return
+		}
+
 		workerNodeURL := fmt.Sprintf("http://%s", n.Address)
 		workerClient := clients.NewWorkerClient(workerNodeURL)
 		if err := workerClient.SetKey(key, postBody); err != nil {
