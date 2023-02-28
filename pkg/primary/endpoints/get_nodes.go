@@ -4,12 +4,12 @@ import (
 	"sync"
 
 	"keepair/pkg/log"
-	"keepair/pkg/node"
+	node2 "keepair/pkg/primary/node"
 
 	"github.com/gin-gonic/gin"
 )
 
-var GetNodesHandler = func(nodeService node.IService) gin.HandlerFunc {
+var GetNodesHandler = func(nodeService node2.IService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		mu := sync.Mutex{}
@@ -22,7 +22,7 @@ var GetNodesHandler = func(nodeService node.IService) gin.HandlerFunc {
 		wg := sync.WaitGroup{}
 		for i, n := range nodes {
 			wg.Add(1)
-			go func(i int, n node.Node) {
+			go func(i int, n node2.Node) {
 				defer wg.Done()
 
 				if err := n.LoadStats(); err != nil {

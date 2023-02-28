@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"keepair/pkg/node"
+	"keepair/pkg/log"
 	"keepair/pkg/primary"
+	"keepair/pkg/primary/node"
 	"keepair/pkg/seeder"
 	"keepair/pkg/worker"
 
@@ -107,7 +108,7 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 2)
 
 	// check both nodes, should be roughly equal in objects
 	{
@@ -126,9 +127,13 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 		count0 := nodes.Nodes[0].Stats.ObjectCount
 		count1 := nodes.Nodes[1].Stats.ObjectCount
 
-		assert.Equalf(t, count0+count1, numObjects, "counts should add up to total number of objects")
+		log.BigPrintf("count0: %d –– count1: %d", count0, count1)
+
+		assert.Equalf(t, numObjects, count0+count1, "counts should add up to total number of objects")
 		assert.Truef(t, math.Abs(float64(count0-count1)) < float64(numObjects)*0.10, "delta between counts should be less than 10 percent of total")
 	}
+
+	_ = worker1ID
 
 	// unregister worker1, which should trigger rebalance
 	{

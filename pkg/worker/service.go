@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"keepair/pkg/log"
-	"keepair/pkg/store"
+	"keepair/pkg/worker/store"
 
 	"github.com/google/uuid"
 )
@@ -27,10 +27,11 @@ type Service struct {
 }
 
 func NewService(primaryNodeURL string) IService {
+	ID := uuid.NewString()
 	return &Service{
-		ID:             uuid.NewString(),
+		ID:             ID,
 		PrimaryNodeURL: primaryNodeURL,
-		Store:          store.NewMemStore(),
+		Store:          store.NewMemStore(ID),
 	}
 }
 
@@ -40,12 +41,12 @@ func (m *Service) GetID() string {
 
 func (m *Service) Run(ctx context.Context, port string) error {
 
-	go func() {
-		for {
-			log.Get().Printf("STORAGE (%s): %d", m.ID, m.Store.GetObjectCount())
-			time.Sleep(time.Second / 2)
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		log.Get().Printf("STORAGE (%s): %d", m.ID, m.Store.GetObjectCount())
+	// 		time.Sleep(time.Second * 2)
+	// 	}
+	// }()
 
 	errChan := make(chan error)
 

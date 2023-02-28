@@ -3,8 +3,8 @@ package endpoints
 import (
 	"fmt"
 
-	"keepair/pkg/store"
 	"keepair/pkg/streamer"
+	"keepair/pkg/worker/store"
 
 	"github.com/gin-gonic/gin"
 )

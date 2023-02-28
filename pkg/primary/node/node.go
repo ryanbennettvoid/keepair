@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"keepair/pkg/clients"
 	"keepair/pkg/common"
 	"keepair/pkg/log"
+	"keepair/pkg/primary/clients"
 )
 
 type Node struct {
@@ -66,4 +66,8 @@ func (node *Node) LoadStats() error {
 	}
 	node.Stats = stats
 	return nil
+}
+
+func (node *Node) URL() string {
+	return fmt.Sprintf("http://%s", node.Address)
 }

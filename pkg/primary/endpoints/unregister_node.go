@@ -1,7 +1,7 @@
 package endpoints
 
 import (
-	"keepair/pkg/node"
+	"keepair/pkg/primary/node"
 
 	"github.com/gin-gonic/gin"
 )

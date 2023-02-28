@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"keepair/pkg/base_server"
-	"keepair/pkg/store"
 	"keepair/pkg/worker/endpoints"
+	"keepair/pkg/worker/store"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +30,8 @@ func (s *Server) Run(ctx context.Context, port string) error {
 	r.GET("/keys/:key", endpoints.GetKeyHandler(s.Store))
 	r.GET("/stats", endpoints.GetStatsHandler(s.Store))
 	r.GET("/stream-entries", endpoints.StreamEntriesHandler(s.Store))
+	r.POST("/queue-operations", endpoints.QueueOperationsHandler(s.Store))
+	r.POST("/apply-operations", endpoints.ApplyOperationsHandler(s.Store))
 
 	svr := base_server.NewBaseServer(r)
 	return svr.Run(ctx, port)

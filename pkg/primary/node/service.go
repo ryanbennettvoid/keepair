@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"keepair/pkg/clients"
 	"keepair/pkg/common"
 	"keepair/pkg/log"
 	"keepair/pkg/partition"
+	"keepair/pkg/primary/clients"
 )
 
 type CancelFunc func()
@@ -128,6 +128,8 @@ var DeleteNode = RebalanceOperation("delete")
 // Caller must handle locks.
 func (m *Service) rebalanceNodes(operation RebalanceOperation, opNode Node) error {
 
+	log.BigPrintf("OLD NODES: %+v", m.Nodes)
+
 	// make copy of nodes map
 	nodes := Map(m.Nodes)
 	if operation == AddNode {
@@ -140,6 +142,8 @@ func (m *Service) rebalanceNodes(operation RebalanceOperation, opNode Node) erro
 	indexes := nodes.CreateIndexes()
 	numNodes := len(nodes)
 
+	log.BigPrintf("NEW NODES: %+v", nodes)
+
 	defer func() {
 		m.Nodes = nodes
 		m.Indexes = indexes
@@ -149,58 +153,114 @@ func (m *Service) rebalanceNodes(operation RebalanceOperation, opNode Node) erro
 		return nil
 	}
 
-	log.Get().Printf("REBALANCE STARTED...")
-	defer log.Get().Printf("REBALANCE DONE")
+	log.BigPrintf("[%s] REBALANCE STARTED...", "primary")
+	defer log.BigPrintf("[%s] REBALANCE DONE", "primary")
+
+	// handle buffering of operations and set flush callback
+	q := NewTransferOperationsQueueWithCallback(50, func(items []TransferOperation) error {
+		for _, item := range items {
+			if err := handleBulkTransferOps(item.Entry, item.SourceNode, item.TargetNode); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 
 	// for each node, regenerate partition keys and move data to correct node
-	for _, n := range nodes {
-		log.Get().Printf("REBALANCE NODE %s", n.ID)
-		workerNodeURL := fmt.Sprintf("http://%s", n.Address)
-		workerClient := clients.NewWorkerClient(workerNodeURL)
-		entryChan, errChan := workerClient.StreamEntries()
+	for _, currentNode := range nodes {
 
-		for {
+		var entryChan <-chan common.Entry
+		var errChan <-chan error
+
+		workerClient := clients.NewWorkerClient(currentNode.URL())
+		if operation == DeleteNode {
+			// if deleting, then stream entries from the node
+			// that will soon be deleted
+			workerClient = clients.NewWorkerClient(opNode.URL())
+		}
+		entryChan, errChan = workerClient.StreamEntries()
+
+		loop := true
+
+		for loop {
 			select {
 			case err := <-errChan:
-				return err
+				if err != nil {
+					return err
+				}
+				loop = false
 			case entry := <-entryChan:
 				switch operation {
 				case AddNode:
-					sourceNode := nodes[indexes[n.Index]]
+					sourceNode := nodes[indexes[currentNode.Index]]
 					targetNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, numNodes)
 					targetNode := nodes[indexes[targetNodeIndex]]
 					if sourceNode.ID != targetNode.ID {
-						if err := transferEntry(entry, sourceNode, targetNode); err != nil {
-							return err // this would be bad!
+
+						// if err := handleBulkTransferOps(entry, sourceNode, targetNode); err != nil {
+						// 	return err
+						// }
+
+						if err := q.Push(NewTransferOperation(entry, sourceNode, targetNode)); err != nil {
+							return err
 						}
 					}
 				case DeleteNode:
 					sourceNode := opNode
 					targetNodeIndex := partition.GenerateDeterministicPartitionKey(entry.Key, numNodes)
 					targetNode := nodes[indexes[targetNodeIndex]]
-					if err := transferEntry(entry, sourceNode, targetNode); err != nil {
-						return err // this would be bad!
+
+					// if err := handleBulkTransferOps(entry, sourceNode, targetNode); err != nil {
+					// 	return err
+					// }
+
+					if err := q.Push(NewTransferOperation(entry, sourceNode, targetNode)); err != nil {
+						return err
 					}
 				}
 			}
 		}
 	}
 
+	if err := q.Flush(); err != nil {
+		return err
+	}
+
+	// apply operations for all nodes
+	for _, n := range nodes {
+		workerClient := clients.NewWorkerClient(n.URL())
+		if err := workerClient.ApplyOperations(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-// transferEntry moves data from source node to target node
-func transferEntry(entry common.Entry, source Node, target Node) error {
-	sourceNodeClient := clients.NewWorkerClient(fmt.Sprintf("http://%s", source.Address))
-	targetNodeClient := clients.NewWorkerClient(fmt.Sprintf("http://%s", target.Address))
+func handleBulkTransferOps(entry common.Entry, source Node, target Node) error {
+	sourceNodeClient := clients.NewWorkerClient(source.URL())
+	targetNodeClient := clients.NewWorkerClient(target.URL())
 	// set key on new node
-	if err := targetNodeClient.SetKey(entry.Key, entry.Value); err != nil {
-		return fmt.Errorf("failed to set key: %w", err)
+	if err := targetNodeClient.QueueOperations([]common.EntryOperation{
+		{
+			Action: common.SetEntry,
+			Entry:  entry,
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to queue operation: %w", err)
 	}
 	// delete key on old node
-	if err := sourceNodeClient.DeleteKey(entry.Key); err != nil {
-		return fmt.Errorf("failed to delete key: %w", err)
+	if err := sourceNodeClient.QueueOperations([]common.EntryOperation{
+		{
+			Action: common.DeleteEntry,
+			Entry: common.Entry{
+				Key:   entry.Key,
+				Value: nil,
+			},
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to queue operations: %w", err)
 	}
-	log.Get().Printf("transferred key (%s) from node %d|%s to %d|%s", entry.Key, source.Index, source.Address, target.Index, target.Address)
+	log.Get().Printf("transferred key (%s) from node %s => %s", entry.Key, source.ID, target.ID)
 	return nil
 }

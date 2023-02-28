@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"keepair/pkg/base_server"
-	"keepair/pkg/node"
 	"keepair/pkg/primary/endpoints"
+	"keepair/pkg/primary/node"
 
 	"github.com/gin-gonic/gin"
 )

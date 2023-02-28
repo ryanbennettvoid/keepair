@@ -3,7 +3,7 @@ package primary
 import (
 	"context"
 
-	"keepair/pkg/node"
+	"keepair/pkg/primary/node"
 )
 
 type IService interface {

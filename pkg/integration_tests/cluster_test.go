@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"keepair/pkg/node"
 	"keepair/pkg/primary"
+	"keepair/pkg/primary/node"
 	"keepair/pkg/worker"
 
 	"github.com/stretchr/testify/assert"

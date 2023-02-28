@@ -3,7 +3,7 @@ dev:
 	docker-compose up --build
 
 test:
-	docker-compose -f docker-compose.test.yaml up --build
+	docker-compose -f docker-compose.test.yaml up
 
 bench:
 	go run cmd/benchmark/main.go

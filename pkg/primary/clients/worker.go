@@ -19,6 +19,8 @@ type IWorkerClient interface {
 	GetKey(key string) ([]byte, error)
 	GetStats() (common.NodeStats, error)
 	StreamEntries() (<-chan common.Entry, <-chan error)
+	QueueOperations(operations []common.EntryOperation) error
+	ApplyOperations() error
 }
 
 type WorkerClient struct {
@@ -132,4 +134,34 @@ func (w WorkerClient) StreamEntries() (<-chan common.Entry, <-chan error) {
 	}()
 
 	return entryChan, errChan
+}
+
+func (w WorkerClient) QueueOperations(operations []common.EntryOperation) error {
+	url := fmt.Sprintf("%s/queue-operations", w.WorkerNodeURL)
+	value, err := json.Marshal(operations)
+	if err != nil {
+		return err
+	}
+	res, err := http.Post(url, "", bytes.NewReader(value))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("queue operations request failed: %s", body)
+	}
+	return nil
+}
+
+func (w WorkerClient) ApplyOperations() error {
+	url := fmt.Sprintf("%s/apply-operations", w.WorkerNodeURL)
+	res, err := http.Post(url, "", nil)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("apply operations request failed: %s", body)
+	}
+	return nil
 }

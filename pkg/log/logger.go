@@ -18,3 +18,14 @@ func Get() ILogger {
 	}
 	return defaultLoggerInstance
 }
+
+func BigPrintf(a string, b ...interface{}) {
+	l := Get()
+	l.Printf("=========")
+	if b != nil {
+		l.Printf(a, b...)
+	} else {
+		l.Printf(a)
+	}
+	l.Printf("=========")
+}

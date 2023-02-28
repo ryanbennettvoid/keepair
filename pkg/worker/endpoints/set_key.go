@@ -3,7 +3,7 @@ package endpoints
 import (
 	"io"
 
-	"keepair/pkg/store"
+	"keepair/pkg/worker/store"
 
 	"github.com/gin-gonic/gin"
 )

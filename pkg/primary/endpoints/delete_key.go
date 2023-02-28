@@ -3,9 +3,9 @@ package endpoints
 import (
 	"fmt"
 
-	"keepair/pkg/clients"
-	"keepair/pkg/node"
 	"keepair/pkg/partition"
+	"keepair/pkg/primary/clients"
+	"keepair/pkg/primary/node"
 
 	"github.com/gin-gonic/gin"
 )
