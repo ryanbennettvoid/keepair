@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"keepair/pkg/log"
 	"keepair/pkg/primary"
+	"keepair/pkg/primary/node"
 	"keepair/pkg/seeder"
 	"keepair/pkg/worker"
 )
@@ -72,47 +76,47 @@ func main() {
 
 	_ = worker0ID
 
-	// time.Sleep(time.Second * 2)
-	//
-	// log.BigPrintf("removing worker (0)...")
-	// // remove first node
-	// {
-	// 	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://0.0.0.0:9000/nodes/%s", worker0ID), nil)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	res, err := http.DefaultClient.Do(req)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	body, err := io.ReadAll(res.Body)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	if res.StatusCode != 200 {
-	// 		panic(fmt.Errorf("delete failed: %s", string(body)))
-	// 	}
-	// }
+	time.Sleep(time.Second * 2)
 
-	// // check remaining node object count (should equal total)
-	// {
-	// 	res, err := http.Get("http://0.0.0.0:9000/nodes")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	body, err := io.ReadAll(res.Body)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	var nodes struct {
-	// 		Nodes []node.Node `json:"nodes"`
-	// 	}
-	// 	err = json.Unmarshal(body, &nodes)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	log.BigPrintf("NODES: %+v", nodes)
-	// }
+	log.BigPrintf("removing worker (0)...")
+	// remove first node
+	{
+		req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://0.0.0.0:9000/nodes/%s", worker0ID), nil)
+		if err != nil {
+			panic(err)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			panic(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			panic(err)
+		}
+		if res.StatusCode != 200 {
+			panic(fmt.Errorf("delete failed: %s", string(body)))
+		}
+	}
+
+	// check remaining node object count (should equal total)
+	{
+		res, err := http.Get("http://0.0.0.0:9000/nodes")
+		if err != nil {
+			panic(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			panic(err)
+		}
+		var nodes struct {
+			Nodes []node.Node `json:"nodes"`
+		}
+		err = json.Unmarshal(body, &nodes)
+		if err != nil {
+			panic(err)
+		}
+		log.BigPrintf("NODES: %+v", nodes)
+	}
 
 	block := make(chan struct{})
 	<-block

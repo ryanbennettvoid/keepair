@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"keepair/pkg/log"
 	"keepair/pkg/primary"
 	"keepair/pkg/primary/node"
 	"keepair/pkg/seeder"
@@ -108,7 +107,7 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second)
 
 	// check both nodes, should be roughly equal in objects
 	{
@@ -127,8 +126,6 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 		count0 := nodes.Nodes[0].Stats.ObjectCount
 		count1 := nodes.Nodes[1].Stats.ObjectCount
 
-		log.BigPrintf("count0: %d –– count1: %d", count0, count1)
-
 		assert.Equalf(t, numObjects, count0+count1, "counts should add up to total number of objects")
 		assert.Truef(t, math.Abs(float64(count0-count1)) < float64(numObjects)*0.10, "delta between counts should be less than 10 percent of total")
 	}
@@ -145,7 +142,7 @@ func TestRebalanceOnAddWorkerNode(t *testing.T) {
 	}
 
 	// wait for rebalance to finish
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Second)
 
 	// check nodes again, should be only a single node containing all objects
 	{

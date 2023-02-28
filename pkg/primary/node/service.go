@@ -234,6 +234,15 @@ func (m *Service) rebalanceNodes(operation RebalanceOperation, opNode Node) erro
 		}
 	}
 
+	// if deleting, apply operations on node that will
+	// soon be deleted
+	if operation == DeleteNode {
+		workerClient := clients.NewWorkerClient(opNode.URL())
+		if err := workerClient.ApplyOperations(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
